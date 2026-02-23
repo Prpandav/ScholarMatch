@@ -82,6 +82,7 @@ const getRecommendations = async (req, res) => {
     profileId: savedProfile._id,
     student_name: mlResponse.data.student_name,
     total_matches: mlResponse.data.total_matches,
+    fairness_note: mlResponse.data.fairness_note,
     scholarships: mlResponse.data.scholarships,
   });
 };

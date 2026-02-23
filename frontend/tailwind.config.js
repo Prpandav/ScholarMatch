@@ -1,10 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  content: ["./index.html", "./src/**/*.{js,jsx}"],
+  darkMode: "class", // class-based dark mode
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["Inter", "system-ui", "sans-serif"],
       },
       colors: {
         brand: {
@@ -13,27 +14,19 @@ export default {
           500: "#6366f1",
           600: "#4f46e5",
           700: "#4338ca",
-          800: "#3730a3",
+          900: "#312e81",
         },
+      },
+      animation: {
+        "fade-slide-up": "fadeSlideUp 0.45s ease both",
+        "spin-slow": "spin 3s linear infinite",
+        "pulse-soft": "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite",
       },
       keyframes: {
         fadeSlideUp: {
           "0%": { opacity: "0", transform: "translateY(20px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
-        spin: {
-          to: { transform: "rotate(360deg)" },
-        },
-        pulse: {
-          "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0.5" },
-        },
-      },
-      animation: {
-        "fade-slide-up": "fadeSlideUp 0.5s ease-out forwards",
-        "fade-slide-up-1": "fadeSlideUp 0.5s 0.1s ease-out both",
-        "fade-slide-up-2": "fadeSlideUp 0.5s 0.25s ease-out both",
-        "fade-slide-up-3": "fadeSlideUp 0.5s 0.4s ease-out both",
       },
     },
   },

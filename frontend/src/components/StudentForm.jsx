@@ -1,18 +1,12 @@
 /**
- * components/StudentForm.jsx
- * --------------------------
- * Controlled form that collects the six StudentProfile fields.
- * All state is managed internally; the final profile object is
- * lifted to App.jsx via the onSubmit prop.
- *
- * Props:
- *   onSubmit(profileData) — called on valid form submission
- *   isLoading             — disables the submit button while fetching
+ * components/StudentForm.jsx — v2
+ * BUG FIX: Field component moved OUTSIDE StudentForm so React never
+ * treats it as a new component type on re-render (which caused focus loss).
  */
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
-import { useState } from "react";
-
-const INITIAL_STATE = {
+const INITIAL = {
   name: "",
   gpa: "",
   income: "",
@@ -21,229 +15,242 @@ const INITIAL_STATE = {
   caste: "",
 };
 
-export default function StudentForm({ onSubmit, isLoading }) {
-  const [form, setForm] = useState(INITIAL_STATE);
+// ── Profile Strength indicator (defined outside to avoid remount) ──────────────
+function ProfileStrength({ profile }) {
+  const fields = ["name", "gpa", "income", "gender", "region", "caste"];
+  const filled = fields.filter((f) => {
+    const v = profile[f];
+    return v !== "" && v !== undefined && v !== null;
+  }).length;
+  const pct = Math.round((filled / fields.length) * 100);
+  const color =
+    pct < 40
+      ? "from-red-400 to-orange-400"
+      : pct < 70
+        ? "from-yellow-400 to-amber-400"
+        : "from-emerald-400 to-teal-500";
+  const label =
+    pct < 40
+      ? "Weak"
+      : pct < 70
+        ? "Moderate"
+        : pct < 100
+          ? "Strong"
+          : "Complete";
+  return (
+    <div className="mb-5 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          Profile Strength
+        </span>
+        <span className="text-xs font-bold text-slate-800 dark:text-white">
+          {pct}% — {label}
+        </span>
+      </div>
+      <div className="w-full h-2 rounded-full bg-white dark:bg-slate-700 overflow-hidden">
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-500`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Text / number input field (defined outside to avoid remount on re-render) ──
+function TextField({ id, label, type, placeholder, value, onChange, error }) {
+  return (
+    <div>
+      <label htmlFor={id} className="form-label">
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type || "text"}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        className={`form-field ${error ? "border-red-300 focus:ring-red-300" : ""}`}
+      />
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// ── Select field (defined outside to avoid remount on re-render) ───────────────
+function SelectField({ id, label, value, onChange, error, children }) {
+  return (
+    <div>
+      <label htmlFor={id} className="form-label">
+        {label}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={onChange}
+        className={`form-field ${error ? "border-red-300" : ""}`}
+      >
+        {children}
+      </select>
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// ── Main form component ────────────────────────────────────────────────────────
+export default function StudentForm({ onSubmit, loading, initialValues }) {
+  const { t } = useTranslation();
+  const [form, setForm] = useState(INITIAL);
   const [errors, setErrors] = useState({});
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-    // Clear the field error as soon as the user starts typing
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+  useEffect(() => {
+    if (initialValues) {
+      // input[type=number] values must be strings in React controlled components
+      setForm({
+        ...initialValues,
+        gpa: String(initialValues.gpa ?? ""),
+        income: String(initialValues.income ?? ""),
+      });
+    }
+  }, [initialValues]);
+
+  // Single change handler — returns a stable function per field key
+  const handleChange = (key) => (e) => {
+    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
   const validate = () => {
-    const newErrors = {};
-    if (!form.name.trim()) newErrors.name = "Name is required.";
-    if (!form.gpa) newErrors.gpa = "GPA is required.";
-    else if (form.gpa < 0 || form.gpa > 10)
-      newErrors.gpa = "GPA must be between 0 and 10.";
-    if (!form.income) newErrors.income = "Annual income is required.";
-    if (!form.gender) newErrors.gender = "Please select a gender.";
-    if (!form.region) newErrors.region = "Please select a region.";
-    if (!form.caste) newErrors.caste = "Please select a category.";
-    return newErrors;
+    const e = {};
+    if (!form.name.trim()) e.name = "Full name is required";
+    const g = parseFloat(form.gpa);
+    if (isNaN(g) || g < 0 || g > 10) e.gpa = "GPA must be 0 – 10";
+    const inc = parseInt(form.income);
+    if (isNaN(inc) || inc < 0) e.income = "Enter a valid income";
+    if (!form.gender) e.gender = "Select gender";
+    if (!form.region) e.region = "Select region";
+    if (!form.caste) e.caste = "Select category";
+    return e;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const validationErrors = validate();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
+    const errs = validate();
+    if (Object.keys(errs).length) {
+      setErrors(errs);
       return;
     }
     onSubmit({
-      name: form.name.trim(),
+      ...form,
       gpa: parseFloat(form.gpa),
-      income: parseInt(form.income, 10),
-      gender: form.gender,
-      region: form.region,
-      caste: form.caste,
+      income: parseInt(form.income),
     });
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto animate-fade-slide-up">
-      {/* Hero text */}
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">
-          Find Your Perfect Scholarship
+    <div className="glass-card p-8 w-full max-w-2xl mx-auto">
+      <div className="text-center mb-6">
+        <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white">
+          {t("form_title")}
         </h2>
-        <p className="text-slate-500 text-base font-normal">
-          Fill in your profile below — our AI will match you with the best
-          opportunities in seconds.
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          {t("form_subtitle")}
         </p>
       </div>
 
-      {/* Form card */}
-      <form
-        onSubmit={handleSubmit}
-        noValidate
-        className="glass-card p-8 space-y-5"
-      >
+      <ProfileStrength profile={form} />
+
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         {/* Full Name */}
-        <div>
-          <label className="form-label" htmlFor="name">
-            Full Name
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            placeholder="e.g. Riya Sharma"
-            value={form.name}
-            onChange={handleChange}
-            className={`form-field ${errors.name ? "border-red-400 focus:ring-red-300" : ""}`}
+        <TextField
+          id="name"
+          label={t("name")}
+          placeholder="e.g. Riya Sharma"
+          value={form.name}
+          onChange={handleChange("name")}
+          error={errors.name}
+        />
+
+        {/* GPA + Income */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <TextField
+            id="gpa"
+            label={`${t("gpa")} (0–10)`}
+            type="number"
+            placeholder="e.g. 8.5"
+            value={form.gpa}
+            onChange={handleChange("gpa")}
+            error={errors.gpa}
           />
-          {errors.name && (
-            <p className="mt-1 text-xs text-red-500">{errors.name}</p>
+          <TextField
+            id="income"
+            label={t("income")}
+            type="number"
+            placeholder="e.g. 250000"
+            value={form.income}
+            onChange={handleChange("income")}
+            error={errors.income}
+          />
+        </div>
+
+        {/* Gender + Region + Caste */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <SelectField
+            id="gender"
+            label={t("gender")}
+            value={form.gender}
+            onChange={handleChange("gender")}
+            error={errors.gender}
+          >
+            <option value="">{t("select")}</option>
+            <option value="Male">{t("male")}</option>
+            <option value="Female">{t("female")}</option>
+            <option value="Other">{t("other")}</option>
+          </SelectField>
+
+          <SelectField
+            id="region"
+            label={t("region")}
+            value={form.region}
+            onChange={handleChange("region")}
+            error={errors.region}
+          >
+            <option value="">{t("select")}</option>
+            <option value="Urban">{t("urban")}</option>
+            <option value="Rural">{t("rural")}</option>
+            <option value="Semi-Urban">{t("semi_urban")}</option>
+          </SelectField>
+
+          <SelectField
+            id="caste"
+            label={t("caste")}
+            value={form.caste}
+            onChange={handleChange("caste")}
+            error={errors.caste}
+          >
+            <option value="">{t("select")}</option>
+            <option value="General">{t("general")}</option>
+            <option value="OBC">OBC</option>
+            <option value="SC">SC</option>
+            <option value="ST">ST</option>
+          </SelectField>
+        </div>
+
+        <button
+          id="submit-btn"
+          type="submit"
+          disabled={loading}
+          className="btn-primary w-full flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <>
+              <span className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+              {t("analyzing")}
+            </>
+          ) : (
+            t("submit")
           )}
-        </div>
-
-        {/* GPA + Income — side by side on md+ screens */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label className="form-label" htmlFor="gpa">
-              GPA{" "}
-              <span className="text-slate-400 font-normal">(0 – 10 scale)</span>
-            </label>
-            <input
-              id="gpa"
-              name="gpa"
-              type="number"
-              min="0"
-              max="10"
-              step="0.1"
-              placeholder="e.g. 8.5"
-              value={form.gpa}
-              onChange={handleChange}
-              className={`form-field ${errors.gpa ? "border-red-400 focus:ring-red-300" : ""}`}
-            />
-            {errors.gpa && (
-              <p className="mt-1 text-xs text-red-500">{errors.gpa}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="form-label" htmlFor="income">
-              Annual Family Income{" "}
-              <span className="text-slate-400 font-normal">(₹)</span>
-            </label>
-            <input
-              id="income"
-              name="income"
-              type="number"
-              min="0"
-              step="1000"
-              placeholder="e.g. 250000"
-              value={form.income}
-              onChange={handleChange}
-              className={`form-field ${errors.income ? "border-red-400 focus:ring-red-300" : ""}`}
-            />
-            {errors.income && (
-              <p className="mt-1 text-xs text-red-500">{errors.income}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Gender + Region + Caste — three selects */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div>
-            <label className="form-label" htmlFor="gender">
-              Gender
-            </label>
-            <select
-              id="gender"
-              name="gender"
-              value={form.gender}
-              onChange={handleChange}
-              className={`form-field ${errors.gender ? "border-red-400 focus:ring-red-300" : ""}`}
-            >
-              <option value="">Select…</option>
-              <option>Male</option>
-              <option>Female</option>
-              <option>Other</option>
-            </select>
-            {errors.gender && (
-              <p className="mt-1 text-xs text-red-500">{errors.gender}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="form-label" htmlFor="region">
-              Region
-            </label>
-            <select
-              id="region"
-              name="region"
-              value={form.region}
-              onChange={handleChange}
-              className={`form-field ${errors.region ? "border-red-400 focus:ring-red-300" : ""}`}
-            >
-              <option value="">Select…</option>
-              <option>Urban</option>
-              <option>Rural</option>
-              <option>Semi-Urban</option>
-            </select>
-            {errors.region && (
-              <p className="mt-1 text-xs text-red-500">{errors.region}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="form-label" htmlFor="caste">
-              Caste Category
-            </label>
-            <select
-              id="caste"
-              name="caste"
-              value={form.caste}
-              onChange={handleChange}
-              className={`form-field ${errors.caste ? "border-red-400 focus:ring-red-300" : ""}`}
-            >
-              <option value="">Select…</option>
-              <option>General</option>
-              <option>OBC</option>
-              <option>SC</option>
-              <option>ST</option>
-            </select>
-            {errors.caste && (
-              <p className="mt-1 text-xs text-red-500">{errors.caste}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Submit */}
-        <div className="pt-2">
-          <button type="submit" disabled={isLoading} className="btn-primary">
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="animate-spin h-4 w-4 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8z"
-                  />
-                </svg>
-                Analyzing…
-              </span>
-            ) : (
-              "✨ Find My Scholarships"
-            )}
-          </button>
-        </div>
+        </button>
       </form>
     </div>
   );

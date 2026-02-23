@@ -1,60 +1,53 @@
 """
-schemas.py
-----------
-Pydantic models that define the data contracts for the /predict endpoint.
-- StudentProfile : the incoming request body
-- Scholarship    : a single scholarship result item
-- PredictionResponse : the full response wrapper
+schemas.py  —  ScholarMatch ML Service
+Updated with rich response fields: eligibility explanation, deadline,
+documents required, fairness info, and OCR verification schemas.
 """
 
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 
 
-# ---------------------------------------------------------------------------
-# Request Schema
-# ---------------------------------------------------------------------------
+# ── Request ─────────────────────────────────────────────────────────────────
 
 class StudentProfile(BaseModel):
-    """
-    Represents the student profile sent by the Node.js backend.
-    All fields map directly to the features used by the ML model.
-    """
-    name: str = Field(..., example="Riya Sharma")
-    gpa: float = Field(..., ge=0.0, le=10.0, example=8.5,
-                       description="GPA on a 10-point scale")
-    income: int = Field(..., ge=0, example=250000,
-                        description="Annual family income in INR")
-    gender: str = Field(..., example="Female",
-                        description="Gender of the student")
-    region: str = Field(..., example="Rural",
-                        description="Urban / Rural / Semi-Urban")
-    caste: str = Field(..., example="OBC",
-                       description="General / OBC / SC / ST")
+    name:   str   = Field(..., example="Riya Sharma")
+    gpa:    float = Field(..., ge=0.0, le=10.0, example=8.5)
+    income: int   = Field(..., ge=0, example=250000)
+    gender: str   = Field(..., example="Female")
+    region: str   = Field(..., example="Rural")
+    caste:  str   = Field(..., example="OBC")
 
 
-# ---------------------------------------------------------------------------
-# Response Schemas
-# ---------------------------------------------------------------------------
+# ── Scholarship response ─────────────────────────────────────────────────────
 
 class Scholarship(BaseModel):
-    """
-    Represents a single matched scholarship returned by the ML model.
-    """
-    id: str = Field(..., example="SCH001")
-    name: str = Field(..., example="National Merit Scholarship")
-    provider: str = Field(..., example="Ministry of Education, India")
-    amount: int = Field(..., example=50000,
-                        description="Annual scholarship amount in INR")
-    match_score: float = Field(..., ge=0.0, le=1.0, example=0.95,
-                               description="Cosine similarity score (0–1)")
+    id:                  str         = Field(..., example="SCH001")
+    name:                str         = Field(..., example="National Merit Scholarship")
+    provider:            str         = Field(..., example="Ministry of Education")
+    category:            str         = Field(..., example="Merit-based")
+    amount:              int         = Field(..., example=72000)
+    match_score:         float       = Field(..., ge=0.0, le=1.0, example=0.95)
+    deadline:            str         = Field(..., example="2025-03-31")
+    days_left:           int         = Field(..., example=36)
+    apply_url:           str         = Field(..., example="https://scholarships.gov.in")
+    documents_required:  List[str]   = Field(..., example=["Marksheet", "Income Certificate"])
+    eligibility_criteria:List[str]   = Field(..., example=["GPA ≥ 8.0", "Income < ₹6L"])
+    explanation:         List[str]   = Field(..., example=["✓ Your GPA 8.5 meets minimum 8.0"])
 
 
 class PredictionResponse(BaseModel):
-    """
-    The full response envelope returned by POST /predict.
-    Contains the student name for confirmation + top matched scholarships.
-    """
-    student_name: str = Field(..., example="Riya Sharma")
-    total_matches: int = Field(..., example=3)
-    scholarships: List[Scholarship]
+    student_name:   str            = Field(..., example="Riya Sharma")
+    total_matches:  int            = Field(..., example=3)
+    fairness_note:  str            = Field(..., example="Recommendations are gender-neutral and income-weighted.")
+    scholarships:   List[Scholarship]
+
+
+# ── OCR / Document verification ──────────────────────────────────────────────
+
+class OCRResponse(BaseModel):
+    verified:       bool   = Field(..., example=True)
+    document_type:  str    = Field(..., example="Income Certificate")
+    confidence:     float  = Field(..., ge=0.0, le=1.0, example=0.91)
+    extracted_text: str    = Field(..., example="Annual Income: ₹2,40,000")
+    message:        str    = Field(..., example="Document successfully verified.")

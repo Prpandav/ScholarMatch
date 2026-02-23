@@ -1,95 +1,110 @@
 /**
- * App.jsx
- * -------
- * Root component — owns all application state and orchestrates
- * which view is rendered based on the current status.
- *
- * Status machine:
- *   "idle"    → StudentForm (waiting for user input)
- *   "loading" → LoadingState (API call in-flight)
- *   "results" → ResultsView (scholarships received)
+ * App.jsx — ScholarMatch v2 Root
+ * State machine: idle → loading → results
+ * Integrates: Hero, Form, Results, Toast, DarkMode, i18n
  */
-
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Header from "./components/Header";
+import HeroSection from "./components/HeroSection";
 import StudentForm from "./components/StudentForm";
 import LoadingState from "./components/LoadingState";
 import ResultsView from "./components/ResultsView";
-import { fetchRecommendations } from "./services/api";
+import { getRecommendations } from "./services/api";
+import { useToast } from "./context/ToastContext";
 
 export default function App() {
-  const [status, setStatus] = useState("idle"); // "idle" | "loading" | "results"
+  const { showToast } = useToast();
+  const [uiState, setUiState] = useState("idle"); // idle | loading | results
   const [scholarships, setScholarships] = useState([]);
-  const [studentName, setStudentName] = useState("");
-  const [error, setError] = useState(""); // error toast message
+  const [profile, setProfile] = useState(null);
+  const [fairnessNote, setFairnessNote] = useState("");
+  const [rerunValues, setRerunValues] = useState(null); // for history re-run
+  const formRef = useRef(null);
 
-  /** Called by StudentForm on valid submission */
-  const handleFormSubmit = async (profileData) => {
-    setError("");
-    setStatus("loading");
+  const scrollToForm = () => {
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
+  const handleSubmit = async (formData) => {
+    setUiState("loading");
+    setProfile(formData);
     try {
-      const data = await fetchRecommendations(profileData);
-      setScholarships(data.scholarships);
-      setStudentName(data.student_name);
-      setStatus("results");
+      const data = await getRecommendations(formData);
+      setScholarships(data.scholarships || []);
+      setFairnessNote(data.fairness_note || "");
+      setUiState("results");
+      showToast(
+        `Found ${data.scholarships?.length} scholarships for ${formData.name}!`,
+        "success",
+      );
     } catch (err) {
-      setError(err.message || "Something went wrong. Please try again.");
-      setStatus("idle");
+      setUiState("idle");
+      showToast(
+        err.message || "Something went wrong. Please try again.",
+        "error",
+      );
     }
   };
 
-  /** Reset to the initial form view */
+  // Called by WhatIfSimulator when sliders change
+  const handleSimulate = (data, modifiedProfile) => {
+    setScholarships(data.scholarships || []);
+    setFairnessNote(data.fairness_note || "");
+    setProfile(modifiedProfile);
+  };
+
+  // Called by HistoryPanel re-run
+  const handleRerun = (historyItem) => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setRerunValues(historyItem);
+    setUiState("idle");
+  };
+
   const handleReset = () => {
-    setStatus("idle");
+    setUiState("idle");
+    setRerunValues(null);
     setScholarships([]);
-    setStudentName("");
-    setError("");
+    setProfile(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Always-visible header */}
+    <div className="min-h-screen px-4 py-8 max-w-6xl mx-auto">
       <Header />
 
-      {/* Error toast — shown only when status is "idle" and there is an error */}
-      {error && status === "idle" && (
-        <div className="max-w-2xl mx-auto w-full px-6 mt-6 animate-fade-slide-up">
-          <div className="flex items-start gap-3 px-5 py-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
-            <span className="text-lg flex-shrink-0">⚠️</span>
-            <span className="flex-1">{error}</span>
-            <button
-              onClick={() => setError("")}
-              className="text-red-400 hover:text-red-600 font-semibold text-lg leading-none flex-shrink-0"
-              aria-label="Dismiss error"
-            >
-              ×
-            </button>
-          </div>
-        </div>
+      {/* ── LOADING ── */}
+      {uiState === "loading" && <LoadingState />}
+
+      {/* ── RESULTS ── */}
+      {uiState === "results" && (
+        <ResultsView
+          scholarships={scholarships}
+          profile={profile}
+          fairness_note={fairnessNote}
+          onReset={handleReset}
+          onSimulate={handleSimulate}
+          onRerun={handleRerun}
+        />
       )}
 
-      {/* Main content area */}
-      <main className="flex-1 px-6 py-12">
-        {status === "idle" && (
-          <StudentForm onSubmit={handleFormSubmit} isLoading={false} />
-        )}
-
-        {status === "loading" && <LoadingState />}
-
-        {status === "results" && (
-          <ResultsView
-            studentName={studentName}
-            scholarships={scholarships}
-            onReset={handleReset}
-          />
-        )}
-      </main>
+      {/* ── IDLE (hero + form) ── */}
+      {uiState === "idle" && (
+        <>
+          <HeroSection onGetStarted={scrollToForm} />
+          <div ref={formRef} className="flex justify-center">
+            <StudentForm
+              onSubmit={handleSubmit}
+              loading={false}
+              initialValues={rerunValues}
+            />
+          </div>
+        </>
+      )}
 
       {/* Footer */}
-      <footer className="text-center py-6 text-slate-400 text-xs border-t border-slate-100">
-        © {new Date().getFullYear()} ScholarMatch · AI-Powered · Built for
-        Change
+      <footer className="mt-16 text-center text-xs text-slate-400 dark:text-slate-600 pb-4">
+        ScholarMatch © 2025 · AI-Powered · Built for every Indian student ·{" "}
+        <span className="text-indigo-400">CU Hackathon</span>
       </footer>
     </div>
   );

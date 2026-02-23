@@ -51,7 +51,14 @@ app.get("/", (req, res) => {
 
 // ── Routes ─────────────────────────────────────────────────────────────────
 const recommendationRoutes = require("./routes/recommendations");
+const statsRoutes = require("./routes/stats");
+const historyRoutes = require("./routes/history");
+const documentRoutes = require("./routes/documents");
+
 app.use("/api/recommendations", recommendationRoutes);
+app.use("/api/stats", statsRoutes);
+app.use("/api/history", historyRoutes);
+app.use("/api/documents", documentRoutes);
 
 // ── 404 Handler (catch-all for undefined routes) ───────────────────────────
 app.use((req, res) => {
