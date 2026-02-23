@@ -1,0 +1,70 @@
+# ─── Node.js ───────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp/
+.pnp.js
+
+# ─── Build outputs ─────────────────────────────────────────
+dist/
+build/
+.vite/
+
+# ─── Environment variables (NEVER commit secrets) ──────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ─── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+*.egg
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Python ML artefacts ───────────────────────────────────
+*.pkl
+*.joblib
+*.h5
+*.model
+
+# ─── OS files ──────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ─── IDE / editors ─────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ─── Logs ──────────────────────────────────────────────────
+logs/
+*.log
+
+# ─── MongoDB local data ────────────────────────────────────
+data/
+
+# ─── Coverage & test output ────────────────────────────────
+coverage/
+.nyc_output/
