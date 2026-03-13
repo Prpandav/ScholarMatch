@@ -5,25 +5,43 @@ Endpoints:
   POST /predict           → AI scholarship matching
   POST /verify-document   → OCR document verification
   GET  /stats             → Aggregate stats for dashboard
+  POST /chat              → RAG + LLM scholarship counsellor (Phase 1)
 """
 
 import os, io, re
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
-from schemas import StudentProfile, PredictionResponse, OCRResponse
+from schemas import StudentProfile, PredictionResponse, OCRResponse, ChatRequest, ChatResponse
 from model import predict_scholarships, RAW_SCHOLARSHIPS
 
 load_dotenv()
 PORT = int(os.getenv("PORT", 8000))
 
+
+# ── Startup: pre-warm RAG engine so first chat request is fast ────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Pre-load embedding model + ChromaDB on server start."""
+    try:
+        from rag_engine import initialize_rag
+        initialize_rag()
+    except Exception as e:
+        print(f"⚠️  RAG init skipped (missing deps?): {e}")
+    yield   # server runs here
+    # (cleanup if needed)
+
+
 app = FastAPI(
     title="ScholarMatch ML Service",
-    description="AI-powered scholarship recommendation & OCR verification microservice.",
-    version="2.0.0",
+    description="AI-powered scholarship recommendation, OCR verification & RAG chatbot.",
+    version="3.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -163,6 +181,28 @@ def get_stats():
         "avg_match_time_sec": 1.4,
         "states_covered":     28,
     }
+
+
+# ── Chat / RAG (Phase 1) ─────────────────────────────────────────────────────
+
+@app.post("/chat", response_model=ChatResponse, tags=["Chat"],
+          summary="RAG-powered AI scholarship counsellor")
+def chat(req: ChatRequest):
+    """
+    Retrieves the most relevant scholarship chunks from ChromaDB
+    and uses Gemini 1.5 Flash to generate a grounded, human-friendly response.
+    Works without GOOGLE_API_KEY (falls back to mock mode).
+    """
+    try:
+        from chat_handler import generate_chat_response
+        profile_dict = req.student_profile.model_dump() if req.student_profile else None
+        result = generate_chat_response(
+            message=req.message,
+            student_profile=profile_dict,
+        )
+        return ChatResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat failed: {e}")
 
 
 # ── Dev runner ────────────────────────────────────────────────────────────────

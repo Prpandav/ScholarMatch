@@ -9,6 +9,7 @@ import HeroSection from "./components/HeroSection";
 import StudentForm from "./components/StudentForm";
 import LoadingState from "./components/LoadingState";
 import ResultsView from "./components/ResultsView";
+import ChatWidget from "./components/ChatWidget"; // Phase 1: RAG chat
 import { getRecommendations } from "./services/api";
 import { useToast } from "./context/ToastContext";
 
@@ -106,6 +107,9 @@ export default function App() {
         ScholarMatch © 2025 · AI-Powered · Built for every Indian student ·{" "}
         <span className="text-indigo-400">CU Hackathon</span>
       </footer>
+
+      {/* ── Global floating AI chatbot (always visible) ── */}
+      <ChatWidget studentProfile={profile} />
     </div>
   );
 }

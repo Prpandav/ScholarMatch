@@ -5,3 +5,10 @@ python-dotenv
 pytesseract
 Pillow
 python-multipart
+
+# Phase 1 — LLM + RAG
+langchain
+langchain-google-genai
+chromadb
+sentence-transformers
+google-generativeai

@@ -51,3 +51,25 @@ class OCRResponse(BaseModel):
     confidence:     float  = Field(..., ge=0.0, le=1.0, example=0.91)
     extracted_text: str    = Field(..., example="Annual Income: ₹2,40,000")
     message:        str    = Field(..., example="Document successfully verified.")
+
+
+# ── Chat / RAG ────────────────────────────────────────────────────────────────
+
+class StudentProfileOpt(BaseModel):
+    """Optional student profile attached to a chat message for personalisation."""
+    gpa:    Optional[float] = None
+    income: Optional[int]   = None
+    gender: Optional[str]   = None
+    region: Optional[str]   = None
+    caste:  Optional[str]   = None
+
+
+class ChatRequest(BaseModel):
+    message:         str                      = Field(..., example="Which scholarship is best for a rural OBC girl?")
+    student_profile: Optional[StudentProfileOpt] = None
+
+
+class ChatResponse(BaseModel):
+    response:     str  = Field(..., example="Based on your profile, the Pragati Scholarship fits best...")
+    sources_used: int  = Field(..., example=5)
+    mode:         str  = Field(..., example="gemini-1.5-flash")

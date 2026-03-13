@@ -54,11 +54,13 @@ const recommendationRoutes = require("./routes/recommendations");
 const statsRoutes = require("./routes/stats");
 const historyRoutes = require("./routes/history");
 const documentRoutes = require("./routes/documents");
+const chatRoutes = require("./routes/chat"); // Phase 1: RAG chat
 
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/documents", documentRoutes);
+app.use("/api/chat", chatRoutes);
 
 // ── 404 Handler (catch-all for undefined routes) ───────────────────────────
 app.use((req, res) => {
