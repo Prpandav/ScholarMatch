@@ -7,9 +7,21 @@
  */
 const express = require("express");
 const axios = require("axios");
+const rateLimit = require("express-rate-limit");
 const router = express.Router();
 
-router.post("/", async (req, res) => {
+// Limit chat requests to 15 per minute per IP
+const chatLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 15,
+  message: {
+    success: false,
+    message:
+      "Too many chat requests from this IP, please try again in a minute.",
+  },
+});
+
+router.post("/", chatLimiter, async (req, res) => {
   const { message, studentProfile } = req.body;
 
   if (!message || !message.trim()) {

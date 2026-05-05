@@ -4,7 +4,7 @@
  * Lets the user tweak GPA / Income to see how rankings change in real time.
  * Re-fires /api/recommendations with the modified profile.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { getRecommendations } from "../services/api";
 import { useToast } from "../context/ToastContext";
@@ -15,6 +15,18 @@ export default function WhatIfSimulator({ baseProfile, onResults }) {
   const [gpa, setGpa] = useState(baseProfile?.gpa ?? 7.0);
   const [income, setIncome] = useState(baseProfile?.income ?? 250000);
   const [loading, setLoading] = useState(false);
+
+  // Debounce the API call so dragging the slider doesn't spam the backend
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (gpa !== baseProfile?.gpa || income !== baseProfile?.income) {
+        run();
+      }
+    }, 500); // Wait 500ms after last change
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gpa, income]);
 
   const run = async () => {
     setLoading(true);
@@ -86,21 +98,6 @@ export default function WhatIfSimulator({ baseProfile, onResults }) {
           </div>
         </div>
       </div>
-
-      <button
-        onClick={run}
-        disabled={loading}
-        className="btn-primary w-full flex items-center justify-center gap-2"
-      >
-        {loading ? (
-          <>
-            <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />{" "}
-            Simulating…
-          </>
-        ) : (
-          "▶ Run Simulation"
-        )}
-      </button>
     </div>
   );
 }

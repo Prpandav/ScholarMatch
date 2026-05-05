@@ -5,6 +5,7 @@ python-dotenv
 pytesseract
 Pillow
 python-multipart
+slowapi
 
 # Phase 1 — LLM + RAG
 langchain
