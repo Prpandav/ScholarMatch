@@ -11,14 +11,19 @@ Endpoints:
 import os, io, re
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from schemas import StudentProfile, PredictionResponse, OCRResponse, ChatRequest, ChatResponse
 from model import predict_scholarships, RAW_SCHOLARSHIPS
 
 load_dotenv()
 PORT = int(os.getenv("PORT", 8000))
+
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Startup: pre-warm RAG engine so first chat request is fast ────────────────
@@ -43,6 +48,9 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,7 +77,8 @@ def health_check():
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"],
           summary="AI scholarship matching with XAI explanations")
-def predict(profile: StudentProfile):
+@limiter.limit("10/minute")
+def predict(request: Request, profile: StudentProfile):
     """
     Returns top 3 scholarships with eligibility explanation per field.
     Fairness note confirms gender-neutral scoring methodology.
@@ -104,7 +113,8 @@ DOCUMENT_KEYWORDS = {
 
 @app.post("/verify-document", response_model=OCRResponse, tags=["OCR"],
           summary="Verify uploaded student document using OCR")
-async def verify_document(file: UploadFile = File(...)):
+@limiter.limit("5/minute")
+async def verify_document(request: Request, file: UploadFile = File(...)):
     """
     Accepts an image (JPG/PNG) or PDF. Extracts text via OCR (pytesseract)
     and identifies the document type by keyword matching.
@@ -187,7 +197,8 @@ def get_stats():
 
 @app.post("/chat", response_model=ChatResponse, tags=["Chat"],
           summary="RAG-powered AI scholarship counsellor")
-def chat(req: ChatRequest):
+@limiter.limit("15/minute")
+def chat(request: Request, req: ChatRequest):
     """
     Retrieves the most relevant scholarship chunks from ChromaDB
     and uses Gemini 1.5 Flash to generate a grounded, human-friendly response.

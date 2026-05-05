@@ -8,7 +8,10 @@ Falls back to a rule-based response if GOOGLE_API_KEY is not set.
 
 import os
 from typing import Optional
+from dotenv import load_dotenv
 from rag_engine import retrieve_chunks
+
+load_dotenv()  # Force load the .env file before checking the key
 
 # ── Gemini setup ──────────────────────────────────────────────────────────────
 
@@ -101,19 +104,33 @@ def generate_chat_response(message: str, student_profile: Optional[dict] = None)
         from google import genai
         client = genai.Client(api_key=_API_KEY)
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash",
             contents=prompt,
         )
         return {
             "response":     response.text.strip(),
             "sources_used": len(chunks),
-            "mode":         "gemini-1.5-flash",
+            "mode":         "gemini-2.0-flash",
         }
     except Exception as e:
+        print(f"❌ Gemini API Error during chat: {e}")
+        error_details = str(e)
+        
+        # Handle rate limits or region restrictions gracefully
+        if "429" in error_details or "RESOURCE_EXHAUSTED" in error_details:
+            return {
+                "response": (
+                    "⚠️ **AI quota exhausted or region-restricted.**\n\n"
+                    + _mock_response(message, chunks)
+                ),
+                "sources_used": len(chunks),
+                "mode": "fallback-mock",
+            }
+            
         return {
             "response": (
-                "I'm having trouble connecting to the AI service right now. "
-                "Please try again in a moment."
+                f"⚠️ **AI Connection Error:**\n{error_details}\n\n"
+                "Please double-check your API key in the `.env` file!"
             ),
             "sources_used": len(chunks),
             "mode": "error",
@@ -129,7 +146,6 @@ def _mock_response(message: str, chunks: list) -> str:
         preview = chunks[0][:250]
         return (
             f"Here's what I found in the scholarship database:\n\n{preview}...\n\n"
-            "💡 *Add your GOOGLE_API_KEY to ml-service/.env to enable full AI responses.*"
         )
     if any(w in msg for w in ["obc", "sc", "st", "caste"]):
         return (
